@@ -1,40 +1,45 @@
 package dway_heap
 
+import "core:fmt"
+
 dwayHeap :: struct(T: typeid) {
-	branch_factor: uint,
+	branch_factor: int,
 	compare: proc(parent, child: T) -> (swap: bool),
-	count: uint,
+	count: int,
 	store: []T,
+	heap_allocated: bool,
 }
 
-dwayHeap_from_array :: proc($T: typeid, $branch_factor: uint, compare: proc(parent, child: T) -> (swap: bool), arr: []T) -> (heap: dwayHeap(T)) {
-	heap = dwayHeap(T) {
-		branch_factor = branch_factor,
-		compare = compare,
-		count = len(arr),
-		store = arr,
-	}
-	heapify(&heap)
+dwayHeap_from_array :: proc($T: typeid, $branch_factor: int, compare: proc(parent, child: T) -> (swap: bool), arr: []T) -> (heap: ^dwayHeap(T)) {
+	heap = new(dwayHeap(T))
+	heap.branch_factor = branch_factor
+	heap.compare = compare
+	heap.count = len(arr)
+	heap.store = arr
+	heap.heap_allocated = false
+	heapify(heap)
 	return
 }
 
-create_dwayHeap :: proc($T: typeid, $branch_factor: uint, compare: proc(parent, child: T) -> (swap: bool), capacity: uint) -> (heap: dwayHeap(T), ok: bool) {
+create_dwayHeap :: proc($T: typeid, $branch_factor: int, compare: proc(parent, child: T) -> (swap: bool), capacity: int) -> (heap: ^dwayHeap(T), ok: bool) {
 	store := make([]T, capacity)
-	heap = dwayHeap(T) {
-		branch_factor = branch_factor,
-		compare = compare,
-		count = 0,
-		store = store,
-	}
+	heap = new(dwayHeap(T))
+	ok = (store != nil) & (heap != nil)
+	heap.branch_factor = branch_factor
+	heap.compare = compare
+	heap.count = 0
+	heap.store = store
+	heap.heap_allocated = true
 	return
 }
 
 free_dwayHeap :: proc(heap: ^dwayHeap($T)) {
-	delete(heap.store)
+	if heap.heap_allocated do delete(heap.store)
+	free(heap)
 }
 
 heapify :: proc(heap: ^dwayHeap($T)) -> (ok: bool) {
-	for ix: uint = heap.count / heap.branch_factor; ix >= 0; ix -= 1 {
+	for ix: int = heap.count / heap.branch_factor; ix >= 0; ix -= 1 {
 		if !sink_down(heap, ix) do return false
 	}
 	return true
@@ -93,9 +98,9 @@ replace :: proc(heap: ^dwayHeap($T), item: T) -> (ret: T, ok: bool) {
 }
 			
 @(private)
-get_max_child_index :: proc(heap: ^dwayHeap($T), root_index: uint) -> uint {
-	first_child_index := (root_index * (heap.branch_factor)) + 1
-	max_child_offset: uint = 0
+get_max_child_index :: proc(heap: ^dwayHeap($T), root_index: int) -> int {
+	first_child_index := (root_index * heap.branch_factor) + 1
+	max_child_offset: int = 0
 	for child_offset in 1..<(heap.branch_factor) {
 		if first_child_index + child_offset >= heap.count do break
 		if heap.compare(heap.store[first_child_index + max_child_offset], heap.store[first_child_index + child_offset]) {
@@ -106,12 +111,12 @@ get_max_child_index :: proc(heap: ^dwayHeap($T), root_index: uint) -> uint {
 }
 
 @(private)
-get_parent_index :: proc(heap: ^dwayHeap($T), index: uint) -> uint {
+get_parent_index :: proc(heap: ^dwayHeap($T), index: int) -> int {
 	return index / heap.branch_factor
 }
 
 @(private)
-float_up :: proc(heap: ^dwayHeap($T), index: uint) -> (ok: bool) {
+float_up :: proc(heap: ^dwayHeap($T), index: int) -> (ok: bool) {
 	if index >= heap.count do return false
 	if index == 0 do return true
 	ok = true
@@ -126,10 +131,10 @@ float_up :: proc(heap: ^dwayHeap($T), index: uint) -> (ok: bool) {
 }
 
 @(private)
-sink_down :: proc(heap: ^dwayHeap($T), index: uint) -> (ok: bool) {
+sink_down :: proc(heap: ^dwayHeap($T), index: int) -> (ok: bool) {
 	if index >= heap.count do return false
-	if (index * heap.branch_factor) + 1 >= heap.count do return true
 	ok = true
+	if (index * heap.branch_factor + 1) >= heap.count do return
 	max_child_index := get_max_child_index(heap, index)
 	if heap.compare(heap.store[index], heap.store[max_child_index]) {
 		tmp := heap.store[max_child_index]
